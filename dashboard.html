@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>📈 Stock Dashboard — Value Investing</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --card2: #20243a;
+    --border: #2a2d3e;
+    --text: #e2e8f0;
+    --muted: #8892a4;
+    --accent: #6366f1;
+    --green: #22c55e;
+    --yellow: #eab308;
+    --red: #ef4444;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace; margin: 0; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* Header */
+  .header { background: var(--card); border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+  .logo { font-size: 1.2rem; font-weight: 700; color: var(--accent); letter-spacing: 1px; }
+  .header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .timestamp { color: var(--muted); font-size: 0.75rem; }
+
+  /* Buttons */
+  .btn { cursor: pointer; border: none; border-radius: 6px; padding: 7px 14px; font-size: 0.8rem; font-family: inherit; font-weight: 600; transition: opacity .15s; }
+  .btn:hover { opacity: .85; }
+  .btn-accent { background: var(--accent); color: #fff; }
+  .btn-ghost { background: var(--card2); color: var(--text); border: 1px solid var(--border); }
+  .btn-red { background: var(--red); color: #fff; }
+  .btn-green { background: var(--green); color: #000; }
+  .btn-sm { padding: 4px 10px; font-size: 0.75rem; }
+
+  /* Filters */
+  .filters { background: var(--card); border-bottom: 1px solid var(--border); padding: 10px 24px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .filter-select { background: var(--card2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 0.78rem; font-family: inherit; cursor: pointer; }
+  .filter-input { background: var(--card2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; font-size: 0.78rem; font-family: inherit; width: 180px; }
+  .filter-input::placeholder { color: var(--muted); }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; padding: 0 24px 24px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  thead th { background: var(--card); color: var(--muted); text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; cursor: pointer; user-select: none; }
+  thead th:hover { color: var(--text); }
+  thead th .sort-arrow { margin-left: 4px; opacity: .5; }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+  tbody tr:hover { background: var(--card2); }
+  tbody td { padding: 9px 12px; white-space: nowrap; vertical-align: middle; }
+
+  /* Score bar */
+  .score-bar-wrap { display: flex; align-items: center; gap: 8px; min-width: 120px; }
+  .score-bar-bg { flex: 1; background: var(--border); border-radius: 4px; height: 6px; overflow: hidden; }
+  .score-bar-fill { height: 100%; border-radius: 4px; transition: width .4s; }
+  .score-num { font-weight: 700; width: 34px; text-align: right; font-size: 0.82rem; }
+
+  /* Signal badge */
+  .badge { border-radius: 5px; padding: 3px 9px; font-size: 0.72rem; font-weight: 700; letter-spacing: .5px; }
+  .badge-buy  { background: rgba(34,197,94,.2); color: var(--green); border: 1px solid rgba(34,197,94,.35); }
+  .badge-neutral { background: rgba(234,179,8,.18); color: var(--yellow); border: 1px solid rgba(234,179,8,.3); }
+  .badge-sell { background: rgba(239,68,68,.2); color: var(--red); border: 1px solid rgba(239,68,68,.3); }
+
+  /* Change */
+  .pos { color: var(--green); }
+  .neg { color: var(--red); }
+  .neu { color: var(--muted); }
+
+  /* Skeleton */
+  .skeleton { background: linear-gradient(90deg, var(--card2) 25%, var(--border) 50%, var(--card2) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 4px; }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  .sk-row td div { height: 14px; }
+
+  /* Modal overlay */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--card); border: 1px solid var(--border); border-radius: 12px; max-width: 860px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 28px; position: relative; }
+
+  /* Modal sections */
+  .modal-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; gap: 12px; }
+  .modal-title { font-size: 1.1rem; font-weight: 700; }
+  .modal-ticker { color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
+  .modal-price { font-size: 1.5rem; font-weight: 800; margin-top: 6px; }
+  .modal-close { background: var(--card2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 1rem; flex-shrink: 0; }
+  .modal-close:hover { background: var(--border); }
+
+  .section-title { font-size: 0.78rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin: 20px 0 8px; }
+
+  /* Metrics table */
+  .metrics-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  .metrics-table th { text-align: left; padding: 7px 10px; color: var(--muted); border-bottom: 1px solid var(--border); font-size: 0.72rem; text-transform: uppercase; }
+  .metrics-table td { padding: 8px 10px; border-bottom: 1px solid rgba(42,45,62,.6); }
+  .metrics-table tr:last-child td { border-bottom: none; }
+
+  /* Score breakdown */
+  .breakdown-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid rgba(42,45,62,.5); font-size: 0.78rem; }
+  .breakdown-name { width: 140px; color: var(--muted); flex-shrink: 0; }
+  .breakdown-bar-bg { flex: 1; background: var(--border); border-radius: 4px; height: 5px; overflow: hidden; }
+  .breakdown-bar-fill { height: 100%; border-radius: 4px; }
+  .breakdown-pts { width: 36px; text-align: right; font-weight: 700; }
+  .breakdown-contrib { width: 40px; text-align: right; color: var(--muted); font-size: 0.72rem; }
+
+  /* Settings panel */
+  .settings-panel { display: none; background: var(--card); border: 1px solid var(--border); border-radius: 10px; margin: 0 24px 16px; padding: 20px; }
+  .settings-panel.open { display: block; }
+  .settings-title { font-size: 0.85rem; font-weight: 700; margin-bottom: 14px; color: var(--accent); }
+  .ticker-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .chip { background: var(--card2); border: 1px solid var(--border); border-radius: 5px; padding: 3px 8px; font-size: 0.75rem; display: flex; align-items: center; gap: 5px; }
+  .chip-del { cursor: pointer; color: var(--muted); font-size: 0.85rem; line-height: 1; }
+  .chip-del:hover { color: var(--red); }
+  .add-ticker-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+  .webhook-row { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
+  .text-input { background: var(--card2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 0.78rem; font-family: inherit; }
+
+  /* Responsive */
+  @media (max-width: 700px) {
+    .header { flex-direction: column; align-items: flex-start; }
+    .filters { gap: 6px; }
+    .filter-input { width: 100%; }
+    .modal { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── HEADER ─────────────────────────────────────────────────────────────── -->
+<div class="header">
+  <div class="logo">📈 STOCK DASHBOARD <span style="color:#8892a4;font-size:.8rem;font-weight:400">Value Investing</span></div>
+  <div class="header-right">
+    <span class="timestamp" id="lastUpdate">Cargando...</span>
+    <button class="btn btn-ghost btn-sm" onclick="toggleSettings()">⚙️ Gestionar tickers</button>
+    <button class="btn btn-accent" id="refreshBtn" onclick="doRefresh()">🔄 Refrescar</button>
+  </div>
+</div>
+
+<!-- ── SETTINGS PANEL ─────────────────────────────────────────────────────── -->
+<div class="settings-panel" id="settingsPanel">
+  <div class="settings-title">⚙️ Tickers monitorizados</div>
+  <div class="ticker-chips" id="tickerChips"></div>
+  <div class="add-ticker-row">
+    <input class="text-input" id="newTickerInput" placeholder="Añadir ticker (ej. NVDA)" maxlength="12" style="width:160px"/>
+    <button class="btn btn-accent btn-sm" onclick="addTicker()">+ Añadir</button>
+    <button class="btn btn-ghost btn-sm" onclick="resetTickers()">↺ Restaurar lista por defecto</button>
+  </div>
+  <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;">
+    <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px;">🔔 Alertas por Webhook (Make.com / Zapier)</div>
+    <div class="webhook-row">
+      <input class="text-input" id="webhookUrl" placeholder="https://hook.eu1.make.com/..." style="flex:1" oninput="saveWebhook()"/>
+      <span style="font-size:.72rem;color:var(--muted)">Pega tu webhook URL aquí</span>
+    </div>
+    <div style="font-size:.72rem;color:var(--muted);margin-top:6px;">Las alertas se envían cuando cambia la señal de NEUTRAL/VENDER → COMPRAR entre refrescos.</div>
+  </div>
+</div>
+
+<!-- ── FILTERS ────────────────────────────────────────────────────────────── -->
+<div class="filters">
+  <select class="filter-select" id="filterSignal" onchange="applyFilters()">
+    <option value="">Todas las señales</option>
+    <option value="COMPRAR">✅ COMPRAR</option>
+    <option value="NEUTRAL">⚠️ NEUTRAL</option>
+    <option value="VENDER">❌ VENDER</option>
+  </select>
+  <select class="filter-select" id="filterMarket" onchange="applyFilters()">
+    <option value="">Todos los mercados</option>
+    <option value="US">🇺🇸 US</option>
+    <option value="ES">🇪🇸 España (IBEX)</option>
+    <option value="EU">🇪🇺 Europa</option>
+    <option value="HK">🇭🇰 Hong Kong</option>
+  </select>
+  <select class="filter-select" id="filterSector" onchange="applyFilters()">
+    <option value="">Todos los sectores</option>
+  </select>
+  <input class="filter-input" id="filterSearch" placeholder="🔍 Buscar empresa o ticker…" oninput="applyFilters()"/>
+  <span id="resultCount" style="font-size:.75rem;color:var(--muted);margin-left:auto;"></span>
+</div>
+
+<!-- ── TABLE ──────────────────────────────────────────────────────────────── -->
+<div class="table-wrap" style="margin-top:16px;">
+  <table id="stockTable">
+    <thead>
+      <tr>
+        <th onclick="sortBy('name')">Empresa <span class="sort-arrow">↕</span></th>
+        <th onclick="sortBy('ticker')">Ticker <span class="sort-arrow">↕</span></th>
+        <th onclick="sortBy('sector')">Sector <span class="sort-arrow">↕</span></th>
+        <th onclick="sortBy('market')">Mercado <span class="sort-arrow">↕</span></th>
+        <th onclick="sortBy('price')" style="text-align:right">Precio <span class="sort-arrow">↕</span></th>
+        <th onclick="sortBy('change_1d_pct')" style="text-align:right">Var. 1D <span class="sort-arrow">↕</span></th>
+        <th onclick="sortBy('score')">Score <span class="sort-arrow">↕</span></th>
+        <th onclick="sortBy('signal')">Señal <span class="sort-arrow">↕</span></th>
+        <th>Detalle</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+</div>
+
+<!-- ── MODAL DETALLE ──────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModalOnBg(event)">
+  <div class="modal" id="modalBox">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="mName">—</div>
+        <div class="modal-ticker" id="mTickerSector">—</div>
+        <div class="modal-price" id="mPrice">—</div>
+        <div id="mChange" style="font-size:.85rem;margin-top:2px;"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:10px;">
+        <button class="modal-close" onclick="closeModal()">✕ Cerrar</button>
+        <div id="mSignalBadge"></div>
+        <div style="font-size:1.2rem;font-weight:800;" id="mScore">—</div>
+      </div>
+    </div>
+
+    <div class="section-title">📊 Métricas Fundamentales</div>
+    <table class="metrics-table">
+      <thead><tr><th>Métrica</th><th>Valor</th><th>Referencia</th><th>Estado</th></tr></thead>
+      <tbody id="mMetricsBody"></tbody>
+    </table>
+
+    <div class="section-title">🧮 Desglose del Score</div>
+    <div id="mBreakdown"></div>
+
+    <div class="section-title">📈 Histórico de Precio — 1 año</div>
+    <div style="position:relative;height:220px;">
+      <canvas id="priceChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ── SCRIPT ─────────────────────────────────────────────────────────────── -->
+<script>
+// ── Constants & defaults ─────────────────────────────────────────────────────
+const DEFAULT_TICKERS = [
+  "AAPL","MSFT","GOOGL","AMZN","META","NVDA","TSLA",
+  "JPM","JNJ","BRK-B","V","PG","KO","XOM","WMT",
+  "NVO","TM","ASML","NESN.SW","MC.PA","SAP.DE","OR.PA","AIR.PA",
+  "SIE.DE","TTE.PA","ULVR.L","UNA.AS","RACE.MI","0700.HK",
+  "ITX.MC","SAN.MC","BBVA.MC","IBE.MC","TEF.MC",
+  "REP.MC","ACS.MC","ENG.MC","FER.MC","ACX.MC","CLNX.MC"
+];
+
+const BASE_URL = window.location.origin;
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let allData = [];
+let filteredData = [];
+let sortKey = "score";
+let sortAsc = false;
+let prevSignals = {}; // ticker → signal (para alertas)
+let priceChartInstance = null;
+
+// ── LocalStorage helpers ──────────────────────────────────────────────────────
+function getTickers() {
+  const raw = localStorage.getItem("sd_tickers");
+  try { return raw ? JSON.parse(raw) : [...DEFAULT_TICKERS]; }
+  catch { return [...DEFAULT_TICKERS]; }
+}
+function saveTickers(arr) { localStorage.setItem("sd_tickers", JSON.stringify(arr)); }
+function getWebhook() { return localStorage.getItem("sd_webhook") || ""; }
+function saveWebhook() {
+  const url = document.getElementById("webhookUrl").value.trim();
+  localStorage.setItem("sd_webhook", url);
+}
+
+// ── Load data ─────────────────────────────────────────────────────────────────
+async function loadData() {
+  showSkeleton(10);
+  const tickers = getTickers();
+  try {
+    const res = await fetch(`${BASE_URL}/api/stocks?tickers=${tickers.join(",")}`);
+    const data = await res.json();
+    allData = data;
+
+    // Alertas webhook
+    fireWebhookAlerts(data);
+
+    // Guardar señales para próxima comparación
+    data.forEach(s => { prevSignals[s.ticker] = s.signal; });
+
+    // Sectores únicos para filtro
+    populateSectorFilter(data);
+
+    applyFilters();
+    updateTimestamp();
+  } catch (e) {
+    document.getElementById("tableBody").innerHTML =
+      `<tr><td colspan="9" style="text-align:center;color:var(--red);padding:30px;">Error al cargar datos: ${e.message}<br><small>¿Está el servidor Flask corriendo?</small></td></tr>`;
+  }
+}
+
+function updateTimestamp() {
+  document.getElementById("lastUpdate").textContent =
+    "Actualizado: " + new Date().toLocaleString("es-ES");
+}
+
+async function doRefresh() {
+  const btn = document.getElementById("refreshBtn");
+  btn.disabled = true;
+  btn.textContent = "⏳ Actualizando…";
+  try {
+    await fetch(`${BASE_URL}/api/refresh`);
+    await loadData();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "🔄 Refrescar";
+  }
+}
+
+// ── Skeleton loader ───────────────────────────────────────────────────────────
+function showSkeleton(n) {
+  const cols = 9;
+  let rows = "";
+  for (let i = 0; i < n; i++) {
+    rows += `<tr class="sk-row">` + Array(cols).fill(`<td><div class="skeleton"></div></td>`).join("") + `</tr>`;
+  }
+  document.getElementById("tableBody").innerHTML = rows;
+}
+
+// ── Filters & sort ────────────────────────────────────────────────────────────
+function applyFilters() {
+  const signal = document.getElementById("filterSignal").value;
+  const market = document.getElementById("filterMarket").value;
+  const sector = document.getElementById("filterSector").value;
+  const search = document.getElementById("filterSearch").value.toLowerCase();
+
+  filteredData = allData.filter(s => {
+    if (signal && s.signal !== signal) return false;
+    if (market && s.market !== market) return false;
+    if (sector && s.sector !== sector) return false;
+    if (search && !s.name.toLowerCase().includes(search) && !s.ticker.toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  sortData();
+  renderTable();
+  document.getElementById("resultCount").textContent = `${filteredData.length} resultado${filteredData.length !== 1 ? "s" : ""}`;
+}
+
+function sortBy(key) {
+  if (sortKey === key) sortAsc = !sortAsc;
+  else { sortKey = key; sortAsc = key !== "score"; }
+  sortData();
+  renderTable();
+}
+
+function sortData() {
+  const signalOrder = { COMPRAR: 0, NEUTRAL: 1, VENDER: 2 };
+  filteredData.sort((a, b) => {
+    let va = a[sortKey], vb = b[sortKey];
+    if (sortKey === "signal") { va = signalOrder[va] ?? 1; vb = signalOrder[vb] ?? 1; }
+    if (va === null || va === undefined) return 1;
+    if (vb === null || vb === undefined) return -1;
+    if (typeof va === "string") return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+    return sortAsc ? va - vb : vb - va;
+  });
+}
+
+function populateSectorFilter(data) {
+  const sectors = [...new Set(data.map(s => s.sector).filter(s => s && s !== "—"))].sort();
+  const sel = document.getElementById("filterSector");
+  const current = sel.value;
+  sel.innerHTML = `<option value="">Todos los sectores</option>`;
+  sectors.forEach(s => sel.innerHTML += `<option value="${s}" ${s === current ? "selected" : ""}>${s}</option>`);
+}
+
+// ── Render table ──────────────────────────────────────────────────────────────
+function renderTable() {
+  const tbody = document.getElementById("tableBody");
+  if (!filteredData.length) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:30px;">Sin resultados para los filtros seleccionados.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = filteredData.map(s => rowHtml(s)).join("");
+}
+
+function rowHtml(s) {
+  const priceStr  = s.price != null ? `${fmt2(s.price)} ${s.currency}` : "—";
+  const chgClass  = s.change_1d_pct > 0 ? "pos" : s.change_1d_pct < 0 ? "neg" : "neu";
+  const chgStr    = s.change_1d_pct != null
+    ? `<span class="${chgClass}">${s.change_1d_pct > 0 ? "+" : ""}${fmt2(s.change_1d_pct)}%</span>` : "—";
+  const score     = s.score ?? 0;
+  const scoreColor = score >= 65 ? "var(--green)" : score >= 35 ? "var(--yellow)" : "var(--red)";
+  const badgeClass = s.signal === "COMPRAR" ? "badge-buy" : s.signal === "VENDER" ? "badge-sell" : "badge-neutral";
+  const signalIcon = s.signal === "COMPRAR" ? "✅" : s.signal === "VENDER" ? "❌" : "⚠️";
+
+  return `<tr>
+    <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;" title="${esc(s.name)}">${esc(s.name)}</td>
+    <td style="font-weight:700;color:var(--accent)">${esc(s.ticker)}</td>
+    <td style="color:var(--muted);font-size:.75rem;">${esc(s.sector)}</td>
+    <td><span style="font-size:.72rem;padding:2px 7px;border-radius:4px;background:var(--card2);border:1px solid var(--border);">${esc(s.market)}</span></td>
+    <td style="text-align:right;font-weight:600;">${priceStr}</td>
+    <td style="text-align:right;">${chgStr}</td>
+    <td>
+      <div class="score-bar-wrap">
+        <div class="score-bar-bg">
+          <div class="score-bar-fill" style="width:${score}%;background:${scoreColor}"></div>
+        </div>
+        <span class="score-num" style="color:${scoreColor}">${score}</span>
+      </div>
+    </td>
+    <td><span class="badge ${badgeClass}">${signalIcon} ${s.signal}</span></td>
+    <td><button class="btn btn-ghost btn-sm" onclick="openModal('${esc(s.ticker)}')">🔍 Ver</button></td>
+  </tr>`;
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+async function openModal(ticker) {
+  document.getElementById("modalOverlay").classList.add("open");
+  // Reset
+  document.getElementById("mName").textContent = "Cargando…";
+  document.getElementById("mTickerSector").textContent = ticker;
+  document.getElementById("mPrice").textContent = "—";
+  document.getElementById("mChange").textContent = "";
+  document.getElementById("mSignalBadge").innerHTML = "";
+  document.getElementById("mScore").textContent = "—";
+  document.getElementById("mMetricsBody").innerHTML = skeletonRows(6, 4);
+  document.getElementById("mBreakdown").innerHTML = "";
+  if (priceChartInstance) { priceChartInstance.destroy(); priceChartInstance = null; }
+
+  try {
+    const res = await fetch(`${BASE_URL}/api/stock/${ticker}`);
+    const d = await res.json();
+    renderModal(d);
+  } catch(e) {
+    document.getElementById("mName").textContent = "Error al cargar datos";
+  }
+}
+
+function renderModal(d) {
+  document.getElementById("mName").textContent = d.name || d.ticker;
+  document.getElementById("mTickerSector").textContent = `${d.ticker} · ${d.sector} · ${d.market}`;
+
+  const priceStr = d.price != null ? `${fmt2(d.price)} ${d.currency}` : "—";
+  document.getElementById("mPrice").textContent = priceStr;
+
+  if (d.change_1d_pct != null) {
+    const cls = d.change_1d_pct > 0 ? "pos" : d.change_1d_pct < 0 ? "neg" : "neu";
+    document.getElementById("mChange").innerHTML =
+      `<span class="${cls}">${d.change_1d_pct > 0 ? "+" : ""}${fmt2(d.change_1d_pct)}% hoy</span>`;
+  }
+
+  const score = d.score ?? 0;
+  const scoreColor = score >= 65 ? "var(--green)" : score >= 35 ? "var(--yellow)" : "var(--red)";
+  document.getElementById("mScore").innerHTML =
+    `Score: <span style="color:${scoreColor}">${score}/100</span>`;
+
+  const badgeClass = d.signal === "COMPRAR" ? "badge-buy" : d.signal === "VENDER" ? "badge-sell" : "badge-neutral";
+  const signalIcon = d.signal === "COMPRAR" ? "✅" : d.signal === "VENDER" ? "❌" : "⚠️";
+  document.getElementById("mSignalBadge").innerHTML =
+    `<span class="badge ${badgeClass}" style="font-size:.9rem;padding:6px 14px;">${signalIcon} ${d.signal}</span>`;
+
+  // Metrics table
+  const m = d.metrics || {};
+  const metricsDef = [
+    { key: "per",              label: "PER",              fmt: v => fmt1(v),          ref: "< 15 ideal",     good: v => v < 15,  bad: v => v > 25 },
+    { key: "pb",               label: "P/Book",           fmt: v => fmt2(v),          ref: "< 1.5 ideal",    good: v => v < 1.5, bad: v => v > 3  },
+    { key: "peg",              label: "PEG",              fmt: v => fmt2(v),          ref: "< 1 ideal",      good: v => v < 1,   bad: v => v > 2  },
+    { key: "ev_ebitda",        label: "EV/EBITDA",        fmt: v => fmt1(v),          ref: "< 8 ideal",      good: v => v < 8,   bad: v => v > 15 },
+    { key: "debt_equity",      label: "Deuda/Equity",     fmt: v => fmt1(v) + "%",    ref: "< 50% ideal",    good: v => v < 50,  bad: v => v > 150},
+    { key: "roe",              label: "ROE",              fmt: v => fmt1(v*100) + "%",ref: "> 20% ideal",    good: v => v*100 > 20, bad: v => v*100 < 10 },
+    { key: "operating_margin", label: "Margen Operativo", fmt: v => fmt1(v*100) + "%",ref: "> 20% ideal",    good: v => v*100 > 20, bad: v => v*100 < 10 },
+    { key: "rsi",              label: "RSI-14",           fmt: v => fmt1(v),          ref: "20-35 ideal (sobrev.)", good: v => v >= 20 && v <= 35, bad: v => v > 75 },
+  ];
+
+  document.getElementById("mMetricsBody").innerHTML = metricsDef.map(({ key, label, fmt, ref, good, bad }) => {
+    const v = m[key];
+    let estado = "—";
+    if (v != null) {
+      if (good(v))      estado = "✅ Bueno";
+      else if (bad(v))  estado = "❌ Malo";
+      else              estado = "⚠️ Neutral";
+    }
+    return `<tr>
+      <td style="color:var(--muted)">${label}</td>
+      <td style="font-weight:600">${v != null ? fmt(v) : "N/D"}</td>
+      <td style="color:var(--muted);font-size:.74rem">${ref}</td>
+      <td>${v != null ? estado : "<span style='color:var(--muted)'>N/D</span>"}</td>
+    </tr>`;
+  }).join("");
+
+  // Score breakdown
+  const bd = d.score_breakdown || {};
+  const bdHtml = Object.entries(bd).map(([name, info]) => {
+    const pts = info.raw_score;
+    const contrib = info.contribution ?? 0;
+    const barW = pts != null ? pts : 0;
+    const barColor = pts == null ? "var(--border)" : pts >= 75 ? "var(--green)" : pts >= 40 ? "var(--yellow)" : "var(--red)";
+    return `<div class="breakdown-row">
+      <div class="breakdown-name">${name}</div>
+      <div class="breakdown-bar-bg">
+        <div class="breakdown-bar-fill" style="width:${barW}%;background:${barColor}"></div>
+      </div>
+      <div class="breakdown-pts" style="color:${barColor}">${pts != null ? pts : "N/D"}</div>
+      <div class="breakdown-contrib">+${fmt1(contrib)}</div>
+    </div>`;
+  }).join("");
+  document.getElementById("mBreakdown").innerHTML = bdHtml || "<div style='color:var(--muted);font-size:.8rem'>Sin datos de desglose.</div>";
+
+  // Price chart
+  const history = d.price_history || [];
+  if (history.length > 1) {
+    const ctx = document.getElementById("priceChart").getContext("2d");
+    const labels = history.map(p => p.date);
+    const values = history.map(p => p.close);
+    const first = values[0], last = values[values.length - 1];
+    const lineColor = last >= first ? "#22c55e" : "#ef4444";
+
+    priceChartInstance = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{
+          label: `${d.ticker} – Precio cierre`,
+          data: values,
+          borderColor: lineColor,
+          backgroundColor: lineColor + "18",
+          borderWidth: 1.8,
+          pointRadius: 0,
+          fill: true,
+          tension: 0.3,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: "#1a1d27",
+            borderColor: "#2a2d3e",
+            borderWidth: 1,
+            titleColor: "#e2e8f0",
+            bodyColor: "#8892a4",
+            callbacks: {
+              label: ctx => ` ${fmt4(ctx.parsed.y)} ${d.currency}`
+            }
+          }
+        },
+        scales: {
+          x: { display: false },
+          y: {
+            grid: { color: "#2a2d3e" },
+            ticks: { color: "#8892a4", font: { size: 11 } }
+          }
+        }
+      }
+    });
+  } else {
+    document.getElementById("priceChart").parentElement.innerHTML =
+      "<div style='color:var(--muted);font-size:.8rem;padding:20px 0;'>Historial de precios no disponible.</div>";
+  }
+}
+
+function closeModal() {
+  document.getElementById("modalOverlay").classList.remove("open");
+  if (priceChartInstance) { priceChartInstance.destroy(); priceChartInstance = null; }
+}
+
+function closeModalOnBg(e) {
+  if (e.target === document.getElementById("modalOverlay")) closeModal();
+}
+
+// ── Settings panel ────────────────────────────────────────────────────────────
+function toggleSettings() {
+  const panel = document.getElementById("settingsPanel");
+  panel.classList.toggle("open");
+  if (panel.classList.contains("open")) renderChips();
+}
+
+function renderChips() {
+  const tickers = getTickers();
+  document.getElementById("tickerChips").innerHTML = tickers.map(t =>
+    `<div class="chip">${t}<span class="chip-del" onclick="removeTicker('${t}')">×</span></div>`
+  ).join("");
+}
+
+function removeTicker(ticker) {
+  const tickers = getTickers().filter(t => t !== ticker);
+  saveTickers(tickers);
+  renderChips();
+}
+
+function addTicker() {
+  const input = document.getElementById("newTickerInput");
+  const val = input.value.trim().toUpperCase();
+  if (!val) return;
+  const tickers = getTickers();
+  if (!tickers.includes(val)) {
+    tickers.push(val);
+    saveTickers(tickers);
+  }
+  input.value = "";
+  renderChips();
+}
+
+function resetTickers() {
+  if (!confirm("¿Restaurar la lista de tickers por defecto?")) return;
+  saveTickers([...DEFAULT_TICKERS]);
+  renderChips();
+}
+
+// ── Webhook alerts ─────────────────────────────────────────────────────────────
+// Código implementado al 100% — solo se ejecuta si webhookUrl no está vacío.
+function fireWebhookAlerts(newData) {
+  const webhookUrl = getWebhook();
+  if (!webhookUrl) return; // Solo ejecutar si hay webhook configurado
+
+  newData.forEach(stock => {
+    const prev = prevSignals[stock.ticker];
+    const curr = stock.signal;
+    // Alertar cuando mejora la señal hacia COMPRAR
+    const wasNotBuy = prev && prev !== "COMPRAR";
+    const isBuyNow  = curr === "COMPRAR";
+    if (wasNotBuy && isBuyNow) {
+      const payload = {
+        ticker:  stock.ticker,
+        name:    stock.name,
+        signal:  stock.signal,
+        score:   stock.score,
+        price:   stock.price,
+        change:  stock.change_1d_pct,
+        market:  stock.market,
+        ts:      new Date().toISOString(),
+      };
+      fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }).catch(() => {}); // Silencioso ante errores de red
+    }
+  });
+}
+
+// ── Utils ─────────────────────────────────────────────────────────────────────
+function fmt1(v) { return v != null ? Number(v).toFixed(1) : "—"; }
+function fmt2(v) { return v != null ? Number(v).toFixed(2) : "—"; }
+function fmt4(v) { return v != null ? Number(v).toFixed(4) : "—"; }
+function esc(s) { return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+function skeletonRows(rows, cols) {
+  return Array(rows).fill("").map(() =>
+    `<tr>${Array(cols).fill(`<td><div class="skeleton" style="height:12px;border-radius:3px;"></div></td>`).join("")}</tr>`
+  ).join("");
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener("DOMContentLoaded", () => {
+  // Restaurar webhook
+  document.getElementById("webhookUrl").value = getWebhook();
+  // Cargar datos
+  loadData();
+});
+</script>
+</body>
+</html>
